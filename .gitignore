@@ -1,6 +1,7 @@
 /node_modules
 /dist
 /.tmp
+/coverage
 
 webpack.statistics.dev.html
 webpack.statistics.prod.html

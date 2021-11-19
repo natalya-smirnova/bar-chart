@@ -1,4 +1,4 @@
-import "./../style/visual.less";
+// import "./../style/visual.less";
 import {
     select as d3Select
 } from "d3-selection";
