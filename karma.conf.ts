@@ -16,7 +16,7 @@ module.exports = (config: Config) => {
     config.set(<ConfigOptions>{
         mode: "development",
         browserNoActivityTimeout: 100000,
-        browsers: ["ChromeHeadless"], // or Chrome to use locally installed Chrome browser
+        browsers: ["Chrome"], // or Chrome to use locally installed Chrome browser
         colors: true,
         frameworks: ["jasmine"],
         reporters: [

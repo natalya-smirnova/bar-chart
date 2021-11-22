@@ -1,20 +1,24 @@
 import powerbi from "powerbi-visuals-api";
 
 import { BarChartBuilder } from "./visualBuilder";
+import { SampleBarChartDataBuilder } from "./visualData";
 
-import {
-    BarChart as VisualClass
-} from "../src/barChart";
+import DataView = powerbi.DataView;
 
 describe("BarChart", () => {
     let visualBuilder: BarChartBuilder;
     let dataView: DataView;
+    let defaultDataViewBuilder: SampleBarChartDataBuilder;
 
     beforeEach(() => {
         visualBuilder = new BarChartBuilder(500, 500);
+        defaultDataViewBuilder = new SampleBarChartDataBuilder();
+        dataView = defaultDataViewBuilder.getDataView();
     });
 
-    it("root DOM element is created", () => {
-        expect(visualBuilder.mainElement).toBeInDOM();
+    it("main element created", () => {
+        visualBuilder.updateRenderTimeout(dataView, () => {
+            expect(visualBuilder.mainElement[0]).toBeInDOM();
+        });
     });
 });
