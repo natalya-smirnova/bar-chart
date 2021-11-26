@@ -31,6 +31,9 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
 
+import {createTooltipServiceWrapper, ITooltipServiceWrapper} from "powerbi-visuals-utils-tooltiputils";
+import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
+
 import * as tms from "powerbi-visuals-utils-formattingutils";
 import textMeasurementService = tms.textMeasurementService;
 
@@ -227,6 +230,7 @@ export class BarChart implements IVisual {
     private xAxis: Selection<SVGElement>;
     private barDataPoints: BarChartDataPoint[];
     private barChartSettings: BarChartSettings;
+    private tooltipServiceWrapper: ITooltipServiceWrapper;
 
     private barSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
 
@@ -254,6 +258,8 @@ export class BarChart implements IVisual {
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
 
+        this.tooltipServiceWrapper = createTooltipServiceWrapper(this.host.tooltipService, options.element);
+
         this.svg = d3Select(options.element)
             .append('svg')
             .classed('barChart', true);
@@ -264,7 +270,7 @@ export class BarChart implements IVisual {
 
         this.xAxis = this.svg
             .append('g')
-            .classed('xAxis', true);
+            .classed('xAxis', true); 
     }
 
     /**
@@ -338,11 +344,24 @@ export class BarChart implements IVisual {
             .style("fill", (dataPoint: BarChartDataPoint) => dataPoint.color)
             .style("stroke", (dataPoint: BarChartDataPoint) => dataPoint.strokeColor)
             .style("stroke-width", (dataPoint: BarChartDataPoint) => `${dataPoint.strokeWidth}px`);
+        
+        this.tooltipServiceWrapper.addTooltip(barSelectionMerged,
+            (datapoint: BarChartDataPoint) => BarChart.getTooltipData(datapoint),
+            (datapoint: BarChartDataPoint) => datapoint.selectionId);
 
         this.barSelection
             .exit()
             .remove();
 
+    }
+
+    private static getTooltipData(value: any): VisualTooltipDataItem[] {
+        return [{
+            displayName: value.category,
+            value: value.value.toString(),
+            color: value.color,
+            header: 'ToolTip Title'
+        }];
     }
 
     private static wordBreak(
