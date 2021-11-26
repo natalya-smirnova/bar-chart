@@ -76,6 +76,8 @@ interface BarChartDataPoint {
  *
  * @interface
  * @property {{show:boolean}} enableAxis - Object property that allows axis to be enabled.
+ * @property {{generalView.opacity:number}} Bars Opacity - Controls opacity of plotted bars, values range between 10 (almost transparent) to 100 (fully opaque, default)
+ * @property {{generalView.showHelpLink:boolean}} Show Help Button - When TRUE, the plot displays a button which launch a link to documentation.
 */
 interface BarChartSettings {
     enableAxis: {
@@ -246,6 +248,7 @@ export class BarChart implements IVisual {
     private barDataPoints: BarChartDataPoint[];
     private barChartSettings: BarChartSettings;
     private selectionManager: ISelectionManager;
+    private helpLinkElement: Selection<any>;
 
     private barSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
 
@@ -274,6 +277,10 @@ export class BarChart implements IVisual {
         this.host = options.host;
         this.selectionManager = options.host.createSelectionManager();
 
+        this.selectionManager.registerOnSelectCallback(() => {
+            this.syncSelectionState(this.barSelection, <ISelectionId[]>this.selectionManager.getSelectionIds());
+        });
+
         this.svg = d3Select(options.element)
             .append('svg')
             .classed('barChart', true);
@@ -285,6 +292,11 @@ export class BarChart implements IVisual {
         this.xAxis = this.svg
             .append('g')
             .classed('xAxis', true);
+
+            const helpLinkElement: Element = this.createHelpLinkElement();
+            options.element.appendChild(helpLinkElement);
+    
+            this.helpLinkElement = d3Select(helpLinkElement);
     }
 
     /**
@@ -311,6 +323,11 @@ export class BarChart implements IVisual {
             let margins = BarChart.Config.margins;
             height -= margins.bottom;
         }
+        
+        this.helpLinkElement
+        .classed("hidden", !settings.generalView.showHelpLink)
+        .style("border-color", settings.generalView.helpLinkColor)
+        .style("color", settings.generalView.helpLinkColor);
 
         this.xAxis
             .style("font-size", Math.min(height, width) * BarChart.Config.xAxisFontMultiplier)
@@ -349,41 +366,31 @@ export class BarChart implements IVisual {
             .merge(<any>this.barSelection);
 
         barSelectionMerged.classed('bar', true);
-
+        
+        const opacity: number = viewModel.settings.generalView.opacity / 100;
         barSelectionMerged
             .attr("width", xScale.bandwidth())
             .attr("height", d => height - yScale(<number>d.value))
             .attr("y", d => yScale(<number>d.value))
             .attr("x", d => xScale(d.category))
+            .style("fill-opacity", opacity)
+            .style("stroke-opacity", opacity)
             .style("fill", (dataPoint: BarChartDataPoint) => dataPoint.color)
             .style("stroke", (dataPoint: BarChartDataPoint) => dataPoint.strokeColor)
             .style("stroke-width", (dataPoint: BarChartDataPoint) => `${dataPoint.strokeWidth}px`);
+
         
-//             let selectionManager = this.selectionManager;
-
-// //This must be an anonymous function instead of a lambda because
-// //d3 uses 'this' as the reference to the element that was clicked.
-// bars.on('click', function(d) {
-//     selectionManager.select(d.selectionId).then((ids: ISelectionId[]) => {
-//         bars.attr({
-//             'fill-opacity': ids.length > 0 ? BarChart.Config.transparentOpacity : BarChart.Config.solidOpacity
-//         });
-
-//         d3.select(this).attr({
-//             'fill-opacity': BarChart.Config.solidOpacity
-//         });
-//     });
-
-//     (<Event>d3.event).stopPropagation();
-// });
-        //let selectionManager = this.selectionManager;
+        this.syncSelectionState(
+            barSelectionMerged,
+            <ISelectionId[]>this.selectionManager.getSelectionIds()
+        );
 
         barSelectionMerged.on('click', (d) => {
             // Allow selection only if the visual is rendered in a view that supports interactivity (e.g. Report)
             if (this.host.hostCapabilities.allowInteractions) {
-                //const isCtrlPressed: boolean = (<MouseEvent>d3Event).ctrlKey;
+                const isCtrlPressed: boolean = (<MouseEvent>d3Event).ctrlKey;
                 this.selectionManager
-                    .select(d.selectionId)
+                    .select(d.selectionId, isCtrlPressed)
                     .then((ids: ISelectionId[]) => {
                         this.syncSelectionState(barSelectionMerged, ids);
                     });
@@ -395,7 +402,32 @@ export class BarChart implements IVisual {
         this.barSelection
             .exit()
             .remove();
+        
+        this.handleClick(barSelectionMerged);
+    }
 
+    private createHelpLinkElement(): Element {
+        let linkElement = document.createElement("a");
+        linkElement.textContent = "?";
+        linkElement.setAttribute("title", "Open documentation");
+        linkElement.setAttribute("class", "helpLink");
+        linkElement.addEventListener("click", () => {
+            this.host.launchUrl("https://microsoft.github.io/PowerBI-visuals/tutorials/building-bar-chart/adding-url-launcher-element-to-the-bar-chart/");
+        });
+        return linkElement;
+    };
+
+    private handleClick(barSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>) {
+        // Clear selection when clicking outside a bar
+        this.svg.on('click', (d) => {
+            if (this.host.hostCapabilities.allowInteractions) {
+                this.selectionManager
+                    .clear()
+                    .then(() => {
+                        this.syncSelectionState(barSelection, []);
+                    });
+            }
+        });
     }
 
     private static wordBreak(
@@ -498,6 +530,25 @@ export class BarChart implements IVisual {
                         selector: dataViewWildcard.createDataViewWildcardSelector(dataViewWildcard.DataViewWildcardMatchingOption.InstancesAndTotals)
                     });
                 }
+                break;
+            
+            case 'generalView':
+                objectEnumeration.push({
+                    objectName: objectName,
+                    properties: {
+                        opacity: this.barChartSettings.generalView.opacity,
+                        showHelpLink: this.barChartSettings.generalView.showHelpLink
+                    },
+                    validValues: {
+                        opacity: {
+                            numberRange: {
+                                min: 10,
+                                max: 100
+                            }
+                        }
+                    },
+                    selector: null
+                });
                 break;
         };
 

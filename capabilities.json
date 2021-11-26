@@ -77,6 +77,23 @@
                     }
                 }
             }
+        },
+        "generalView": {
+            "displayName": "General View",
+            "properties": {
+                "opacity": {
+                    "displayName": "Bars Opacity",
+                    "type": {
+                        "integer": true
+                    }
+                },
+                "showHelpLink": {
+                    "displayName": "Show Help Button",
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
         }
     },
     "tooltips": {
