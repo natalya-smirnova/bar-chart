@@ -1,5 +1,6 @@
 // import "./../style/visual.less";
 import {
+    event as d3Event,
     select as d3Select
 } from "d3-selection";
 import {
@@ -30,6 +31,7 @@ import VisualObjectInstanceEnumeration = powerbi.VisualObjectInstanceEnumeration
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
+import ISelectionManager = powerbi.extensibility.ISelectionManager;
 
 import * as tms from "powerbi-visuals-utils-formattingutils";
 import textMeasurementService = tms.textMeasurementService;
@@ -80,12 +82,23 @@ interface BarChartSettings {
         show: boolean;
         fill: string;
     };
+
+    generalView: {
+        opacity: number;
+        showHelpLink: boolean;
+        helpLinkColor: string;
+    };
 }
 
 let defaultSettings: BarChartSettings = {
     enableAxis: {
         show: false,
         fill: "#000000",
+    },
+    generalView: {
+        opacity: 100,
+        showHelpLink: false,
+        helpLinkColor: "#80B0E0",
     }
 };
 
@@ -132,6 +145,11 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
         enableAxis: {
             show: getValue<boolean>(objects, 'enableAxis', 'show', defaultSettings.enableAxis.show),
             fill: getAxisTextFillColor(objects, colorPalette, defaultSettings.enableAxis.fill),
+        },
+        generalView: {
+            opacity: getValue<number>(objects, 'generalView', 'opacity', defaultSettings.generalView.opacity),
+            showHelpLink: getValue<boolean>(objects, 'generalView', 'showHelpLink', defaultSettings.generalView.showHelpLink),
+            helpLinkColor: strokeColor,
         }
     };
 
@@ -227,6 +245,7 @@ export class BarChart implements IVisual {
     private xAxis: Selection<SVGElement>;
     private barDataPoints: BarChartDataPoint[];
     private barChartSettings: BarChartSettings;
+    private selectionManager: ISelectionManager;
 
     private barSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
 
@@ -253,6 +272,7 @@ export class BarChart implements IVisual {
      */
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
+        this.selectionManager = options.host.createSelectionManager();
 
         this.svg = d3Select(options.element)
             .append('svg')
@@ -338,6 +358,39 @@ export class BarChart implements IVisual {
             .style("fill", (dataPoint: BarChartDataPoint) => dataPoint.color)
             .style("stroke", (dataPoint: BarChartDataPoint) => dataPoint.strokeColor)
             .style("stroke-width", (dataPoint: BarChartDataPoint) => `${dataPoint.strokeWidth}px`);
+        
+//             let selectionManager = this.selectionManager;
+
+// //This must be an anonymous function instead of a lambda because
+// //d3 uses 'this' as the reference to the element that was clicked.
+// bars.on('click', function(d) {
+//     selectionManager.select(d.selectionId).then((ids: ISelectionId[]) => {
+//         bars.attr({
+//             'fill-opacity': ids.length > 0 ? BarChart.Config.transparentOpacity : BarChart.Config.solidOpacity
+//         });
+
+//         d3.select(this).attr({
+//             'fill-opacity': BarChart.Config.solidOpacity
+//         });
+//     });
+
+//     (<Event>d3.event).stopPropagation();
+// });
+        //let selectionManager = this.selectionManager;
+
+        barSelectionMerged.on('click', (d) => {
+            // Allow selection only if the visual is rendered in a view that supports interactivity (e.g. Report)
+            if (this.host.hostCapabilities.allowInteractions) {
+                //const isCtrlPressed: boolean = (<MouseEvent>d3Event).ctrlKey;
+                this.selectionManager
+                    .select(d.selectionId)
+                    .then((ids: ISelectionId[]) => {
+                        this.syncSelectionState(barSelectionMerged, ids);
+                    });
+
+                (<Event>d3Event).stopPropagation();
+            }
+        });
 
         this.barSelection
             .exit()
@@ -355,6 +408,47 @@ export class BarChart implements IVisual {
                 this,
                 allowedWidth,
                 maxHeight);
+        });
+    }
+
+    private syncSelectionState(
+        selection: Selection<BarChartDataPoint>,
+        selectionIds: ISelectionId[]
+    ): void {
+        if (!selection || !selectionIds) {
+            return;
+        }
+
+        if (!selectionIds.length) {
+            const opacity: number = this.barChartSettings.generalView.opacity / 100;
+            selection
+                .style("fill-opacity", opacity)
+                .style("stroke-opacity", opacity);
+            return;
+        }
+
+        const self: this = this;
+
+        selection.each(function (barDataPoint: BarChartDataPoint) {
+            const isSelected: boolean = self.isSelectionIdInArray(selectionIds, barDataPoint.selectionId);
+
+            const opacity: number = isSelected
+                ? BarChart.Config.solidOpacity
+                : BarChart.Config.transparentOpacity;
+
+            d3Select(this)
+                .style("fill-opacity", opacity)
+                .style("stroke-opacity", opacity);
+        });
+    }
+
+    private isSelectionIdInArray(selectionIds: ISelectionId[], selectionId: ISelectionId): boolean {
+        if (!selectionIds || !selectionId) {
+            return false;
+        }
+
+        return selectionIds.some((currentSelectionId: ISelectionId) => {
+            return currentSelectionId.includes(selectionId);
         });
     }
 
