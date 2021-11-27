@@ -342,7 +342,18 @@ export class BarChart implements IVisual {
         this.barSelection
             .exit()
             .remove();
+        
+        let category = options.dataViews[0].categorical.categories[0];
+        let dataValue = options.dataViews[0].categorical.values[0];
+        let colorPalette = this.host.colorPalette;
+        for (let i = 0, len = Math.max(category.values.length, dataValue.values.length); i < len-1; i++) {
+            const color1: string = getColumnColorByIndex(category, i, colorPalette);
+            const color2: string = getColumnColorByIndex(category, i+1, colorPalette);
 
+            if (color1 == color2) {
+                this.host.displayWarningIcon('same colors', 'there are two neighbor columns with the same color. please use the data color property to change it.');
+            }
+        }
     }
 
     private static wordBreak(
